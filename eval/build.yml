@@ -5,12 +5,16 @@ pool:
   
 variables:
   imageName: 'attngangpu:$(Build.BuildId)'
-  # define two more variables dockerId and dockerPassword in the build pipeline in UI
+  # define dockerId 
+  # define dockerPassword
+  # define userId
 
 steps:
 - script: |
     cd eval
     docker build -f dockerfile.gpu -t $(dockerId).azurecr.io/$(imageName) .
-    docker login -u $(dockerId) -p $pswd $(dockerid).azurecr.io
+    docker login $(dockerid).azurecr.io -u $(userId) -p $pswd
     docker push $(dockerId).azurecr.io/$(imageName)
+  env:
+    pswd: $(dockerPassword)
   displayName: 'Build and push Docker image'
