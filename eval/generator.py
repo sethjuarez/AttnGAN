@@ -15,6 +15,11 @@ from model import RNN_ENCODER, G_NET
 from azure.storage.blob import BlockBlobService
 from miscc.config import cfg
 
+if sys.version_info[0] == 2:
+    import cPickle as pickle
+else:
+    import pickle
+
 class Saveable(object):
     def save(self, relpath, name, image):
         raise NotImplementedError
@@ -33,11 +38,12 @@ class BlobSaveable(Saveable):
         stream.seek(0)
 
         # upload blob
-        blob_name = '{}/{}.png'.format(relpath, k)
+        blob_name = '{}/{}.png'.format(relpath, name)
         self.blob_service.create_blob_from_stream(self.container_name, blob_name, stream)
 
         # return path
-        return '{}/{}/{}'.format(self.basepath, self.container_name, blob_name)
+        item = '{}/{}/{}'.format(self.basepath, self.container_name, blob_name)
+        return item
 
 class Generator:
     def __init__(self, caption_file, saveable):
@@ -48,7 +54,7 @@ class Generator:
         del x
 
         # load text encoder
-        self.text_encoder = RNN_ENCODER(word_len, nhidden=cfg.TEXT.EMBEDDING_DIM)
+        self.text_encoder = RNN_ENCODER(len(self.wordtoix), nhidden=cfg.TEXT.EMBEDDING_DIM)
         state_dict = torch.load(cfg.TRAIN.NET_E, map_location=lambda storage, loc: storage)
         self.text_encoder.load_state_dict(state_dict)
         if cfg.CUDA:
@@ -66,10 +72,26 @@ class Generator:
         # saveable items -> push to storage
         self.saveable = saveable
 
-    def generate(caption, copies=2):
+    def vectorize_caption(self, caption, copies):
+        # create caption vector
+        tokens = caption.split(' ')
+        cap_v = []
+        for t in tokens:
+            t = t.strip().encode('ascii', 'ignore').decode('ascii')
+            if len(t) > 0 and t in self.wordtoix:
+                cap_v.append(self.wordtoix[t])
+
+        # expected state for single generation
+        captions = np.zeros((copies, len(cap_v)))
+        for i in range(copies):
+            captions[i,:] = np.array(cap_v)
+        cap_lens = np.zeros(copies) + len(cap_v)
+
+        return captions.astype(int), cap_lens.astype(int), len(self.wordtoix)
+
+    def generate(self, caption, copies=2):
         # load word vector
-        captions, cap_lens  = vectorize_caption(self.wordtoix, caption, copies)
-        n_words = len(self.wordtoix)
+        captions, cap_lens, n_words = self.vectorize_caption(caption, copies)
 
         # only one to generate
         batch_size = captions.shape[0]
@@ -115,54 +137,33 @@ class Generator:
                 # save using saveable
                 birdy = 'bird_g{}'.format(k)
                 if copies > 2:
-                    urls.append(self.saveable.save('{}/{}'.format(prefix, j), birdy, im))
+                    item = self.saveable.save('{}/{}'.format(prefix, j), birdy, im)
                 else:
-                    urls.append(self.saveable.save(prefix, birdy, im))
+                    item = self.saveable.save(prefix, birdy, im)
 
-                if copies == 2:
-                    for k in range(len(attention_maps)):
-                        if len(fake_imgs) > 1:
-                            im = fake_imgs[k + 1].detach().cpu()
-                        else:
-                            im = fake_imgs[0].detach().cpu()
-                                
-                        attn_maps = attention_maps[k]
-                        att_sze = attn_maps.size(2)
-
-                        img_set, sentences = \
-                            build_super_images2(im[j].unsqueeze(0),
-                                                captions[j].unsqueeze(0),
-                                                [cap_lens_np[j]], self.ixtoword,
-                                                [attn_maps[j]], att_sze)
-
-                        if img_set is not None:
-                            birdy = 'attmaps_{}'.format(k)
-                            urls.append(self.saveable.save(prefix, birdy, img_set))
+                urls.append(item)
 
             if copies == 2:
+                for k in range(len(attention_maps)):
+                    if len(fake_imgs) > 1:
+                        im = fake_imgs[k + 1].detach().cpu()
+                    else:
+                        im = fake_imgs[0].detach().cpu()
+                            
+                    attn_maps = attention_maps[k]
+                    att_sze = attn_maps.size(2)
+
+                    img_set, sentences = \
+                        build_super_images2(im[j].unsqueeze(0),
+                                            captions[j].unsqueeze(0),
+                                            [cap_lens_np[j]], self.ixtoword,
+                                            [attn_maps[j]], att_sze)
+
+                    if img_set is not None:
+                        attnmap = 'attmaps_a{}'.format(k)
+                        item = self.saveable.save(prefix, attnmap, img_set)
+                        urls.append(item)
+            if copies == 2:
                 break
+
         return urls
-
-    def vectorize_caption(copies=2):
-        # create caption vector
-        tokens = caption.split(' ')
-        cap_v = []
-        for t in tokens:
-            t = t.strip().encode('ascii', 'ignore').decode('ascii')
-            if len(t) > 0 and t in self.wordtoix:
-                cap_v.append(self.wordtoix[t])
-
-        # expected state for single generation
-        captions = np.zeros((copies, len(cap_v)))
-        for i in range(copies):
-            captions[i,:] = np.array(cap_v)
-        cap_lens = np.zeros(copies) + len(cap_v)
-
-        return captions.astype(int), cap_lens.astype(int)
-
-if __name__ == "__main__":
-    service = BlobSaveable('attgan', 
-                            'KEYKEYKEY', 
-                            'images', 
-                            'https://attgan.blob.core.windows.net')
-    g = Generator('data/captions.pickle', service)

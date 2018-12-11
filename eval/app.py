@@ -1,8 +1,7 @@
 import os
 import time
 import random
-from eval import *
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, request, abort, render_template
 from applicationinsights import TelemetryClient
 from applicationinsights.requests import WSGIApplication
 from applicationinsights.exceptions import enable
@@ -74,8 +73,37 @@ def create_birds():
         sys.exc_clear()
         abort(500)
 
-@app.route('/', methods=['GET'])
+@app.route('/health', methods=['GET'])
 def get_bird():
+
+    caption = 'This bird has wings that are blue and has a red belly'
+
+    try:
+        t0 = time.time()
+        urls = birdmaker.generate(caption)
+        t1 = time.time()
+
+        response = {
+            'small': urls[0],
+            'medium': urls[1],
+            'large': urls[2],
+            'map1': urls[3],
+            'map2': urls[4],
+            'caption': caption,
+            'elapsed': t1 - t0,
+            'version': 'Version 2'
+        }
+
+        return render_template('main.html', **response)
+
+    except:
+        tc.track_exception(*sys.exc_info(), properties={ 'caption': caption })
+        tc.flush()
+        sys.exc_clear()
+        abort(500)
+     
+@app.route('/', methods=['GET'])
+def get_main():
     return 'Version 2'
 
 if __name__ == '__main__':
@@ -94,13 +122,17 @@ if __name__ == '__main__':
     if cfg.CUDA:
         torch.cuda.manual_seed_all(seed)
 
-    #app.config['PROFILE'] = True
-    #app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
-    #app.run(host='0.0.0.0', port=8080, debug = True)
+    blob_saver = BlobSaveable('attgan', os.environ['BLOB_KEY'], 'images', 'https://attgan.blob.core.windows.net')
+    birdmaker = Generator('data/captions.pickle', blob_saver)
 
-    blob_saver = Saveable('attgan', os.environ['BLOB_KEY'], 'images', 'https://attgan.blob.core.windows.net')
-    birdmaker = Generator('data/captions.pickle', service)
+    debug = False
+
+    if debug:
+        from werkzeug.contrib.profiler import ProfilerMiddleware
+        app.config['PROFILE'] = True
+        app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
+        app.run(host='0.0.0.0', port=8080, debug = True)
 
     t1 = time.time()
     tc.track_event('container start', {"starttime": str(t1-t0)})
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080, debug=debug)

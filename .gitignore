@@ -5,3 +5,6 @@ code/miscc/*.pyc
 .DS_Store
 .idea/
 __pycache__
+
+# run file with embedded keys
+run.cmd
