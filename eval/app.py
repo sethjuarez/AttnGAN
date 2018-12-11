@@ -7,6 +7,7 @@ from applicationinsights.requests import WSGIApplication
 from applicationinsights.exceptions import enable
 from miscc.config import cfg
 from generator import *
+from waitress import serve
 #from werkzeug.contrib.profiler import ProfilerMiddleware
 
 enable(os.environ["TELEMETRY"])
@@ -132,7 +133,7 @@ if __name__ == '__main__':
         app.config['PROFILE'] = True
         app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
         app.run(host='0.0.0.0', port=8080, debug = True)
-
-    t1 = time.time()
-    tc.track_event('container start', {"starttime": str(t1-t0)})
-    app.run(host='0.0.0.0', port=8080, debug=debug, threaded=True)
+    else:
+        t1 = time.time()
+        tc.track_event('container start', {"starttime": str(t1-t0)})
+        serve(app)
