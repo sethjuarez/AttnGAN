@@ -79,22 +79,6 @@ def generate(caption, wordtoix, ixtoword, text_encoder, netG, blob_service, copi
     noise.data.normal_(0, 1)
     fake_imgs, attention_maps, _, _ = netG(noise, sent_emb, words_embs, mask)
 
-    # ONNX EXPORT
-    #export = os.environ["EXPORT_MODEL"].lower() == 'true'
-    if False:
-        print("saving text_encoder.onnx")
-        text_encoder_out = torch.onnx._export(text_encoder, (captions, cap_lens, hidden), "text_encoder.onnx", export_params=True)
-        print("uploading text_encoder.onnx")
-        blob_service.create_blob_from_path('models', "text_encoder.onnx", os.path.abspath("text_encoder.onnx"))
-        print("done")
-
-        print("saving netg.onnx")
-        netg_out = torch.onnx._export(netG, (noise, sent_emb, words_embs, mask), "netg.onnx", export_params=True)
-        print("uploading netg.onnx")
-        blob_service.create_blob_from_path('models', "netg.onnx", os.path.abspath("netg.onnx"))
-        print("done")
-        return
-
     # G attention
     cap_lens_np = cap_lens.cpu().data.numpy()
 
@@ -223,9 +207,6 @@ def eval(caption):
 
 if __name__ == "__main__":
     caption = "the bird has a yellow crown and a black eyering that is round"
-    
-    # load configuration
-    #cfg_from_file('eval_bird.yml')
     # load word dictionaries
     wordtoix, ixtoword = word_index()
     # lead models
