@@ -66,7 +66,7 @@ class Generator:
         # saveable items -> push to storage
         self.saveable = saveable
 
-    def generate(caption, blob_service, copies=2):
+    def generate(caption, copies=2):
         # load word vector
         captions, cap_lens  = vectorize_caption(self.wordtoix, caption, copies)
         n_words = len(self.wordtoix)
