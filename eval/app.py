@@ -135,4 +135,4 @@ if __name__ == '__main__':
 
     t1 = time.time()
     tc.track_event('container start', {"starttime": str(t1-t0)})
-    app.run(host='0.0.0.0', port=8080, debug=debug)
+    app.run(host='0.0.0.0', port=8080, debug=debug, threaded=True)
