@@ -12,38 +12,12 @@ from torch.autograd import Variable
 from miscc.config import cfg
 from miscc.utils import build_super_images2
 from model import RNN_ENCODER, G_NET
-from azure.storage.blob import BlockBlobService
 from miscc.config import cfg
 
 if sys.version_info[0] == 2:
     import cPickle as pickle
 else:
     import pickle
-
-class Saveable(object):
-    def save(self, relpath, name, image):
-        raise NotImplementedError
-
-class BlobSaveable(Saveable):
-    def __init__(self, account_name, account_key, container_name, basepath):
-        self.basepath = basepath
-        self.container_name = container_name
-        self.blob_service = BlockBlobService(account_name=account_name, account_key=account_key)
-
-    def save(self, relpath, name, image):
-        # save image to bytes stream
-        im = Image.fromarray(image)
-        stream = io.BytesIO()
-        im.save(stream, format='png')
-        stream.seek(0)
-
-        # upload blob
-        blob_name = '{}/{}.png'.format(relpath, name)
-        self.blob_service.create_blob_from_stream(self.container_name, blob_name, stream)
-
-        # return path
-        item = '{}/{}/{}'.format(self.basepath, self.container_name, blob_name)
-        return item
 
 class Generator:
     def __init__(self, caption_file, saveable):

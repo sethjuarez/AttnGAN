@@ -5,3 +5,4 @@ scikit-image
 azure-storage-blob
 applicationinsights
 libmc
+waitress

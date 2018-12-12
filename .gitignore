@@ -6,5 +6,5 @@ code/miscc/*.pyc
 .idea/
 __pycache__
 
-# run file with embedded keys
-run.cmd
+# environment variables
+*.env

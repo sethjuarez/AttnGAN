@@ -5,9 +5,12 @@ from flask import Flask, jsonify, request, abort, render_template
 from applicationinsights import TelemetryClient
 from applicationinsights.requests import WSGIApplication
 from applicationinsights.exceptions import enable
+from datetime import datetime
 from miscc.config import cfg
 from generator import *
 from waitress import serve
+from saveable import *
+from miscc.profile import log
 #from werkzeug.contrib.profiler import ProfilerMiddleware
 
 enable(os.environ["TELEMETRY"])
@@ -15,7 +18,14 @@ app = Flask(__name__)
 app.wsgi_app = WSGIApplication(os.environ["TELEMETRY"], app.wsgi_app)
 
 # global generator and telemetry client
-global birdmaker, tc
+global birdmaker, tc, profile, version
+
+def handle_exception(caption):
+    if profile:
+        print(sys.exc_info())
+    tc.track_exception(*sys.exc_info(), properties={ 'caption': caption })
+    tc.flush()
+    sys.exc_clear()
 
 @app.route('/api/v1.0/bird', methods=['POST'])
 def create_bird():
@@ -38,11 +48,13 @@ def create_bird():
             'caption': caption,
             'elapsed': t1 - t0
         }
+
+        if profile:
+            log('/api/v1.0/bird [POST]', **response)
+
         return jsonify({'bird': response}), 201
     except:
-        tc.track_exception(*sys.exc_info(), properties={ 'caption': caption })
-        tc.flush()
-        sys.exc_clear()
+        handle_exception(caption)
         abort(500)
 
 @app.route('/api/v1.0/birds', methods=['POST'])
@@ -67,17 +79,24 @@ def create_birds():
             'caption': caption,
             'elapsed': t1 - t0
         }
+
+        if profile:
+            log('/api/v1.0/birds [POST]', caption=caption, elapsed=response['elapsed'])
+            for i in range(1, 7):
+                b = 'bird{}'.format(i)
+                log(b, **response[b])
+
         return jsonify({'bird': response}), 201
     except:
-        tc.track_exception(*sys.exc_info(), properties={ 'caption': caption })
-        tc.flush()
-        sys.exc_clear()
+        handle_exception(caption)
         abort(500)
 
 @app.route('/health', methods=['GET'])
 def get_bird():
-
-    caption = 'This bird has wings that are blue and has a red belly'
+    if request.args.get('caption') != None:
+        caption = request.args.get('caption')
+    else:
+        caption = 'This bird has wings that are blue and has a red belly'
 
     try:
         t0 = time.time()
@@ -95,45 +114,53 @@ def get_bird():
             'version': 'Version 2'
         }
 
+        if profile:
+            log('/health [GET]', **response)
+
         return render_template('main.html', **response)
 
     except:
-        tc.track_exception(*sys.exc_info(), properties={ 'caption': caption })
-        tc.flush()
-        sys.exc_clear()
+        handle_exception(caption)
         abort(500)
      
 @app.route('/', methods=['GET'])
 def get_main():
-    return 'Version 2'
+    if profile:
+        log('/ [GET]', version=version)
+    return version
 
 if __name__ == '__main__':
-    global birdmaker, tc
+    # initialize global objects
+    global birdmaker, tc, profile, version
+
+    version = os.environ['VERSION'].strip('"') if 'VERSION' in os.environ else 'Standard'
+    profile = 'PROFILE' in os.environ and os.environ['PROFILE'].strip('"').lower() == 'true'
+
+    if profile:
+        log('current environment vars', **os.environ)
+
     t0 = time.time()
-    tc = TelemetryClient(os.environ["TELEMETRY"])
+    tc = TelemetryClient(os.environ["TELEMETRY"].strip('"'))
+
+    # initialize saver
+    account_name = os.environ['BLOB_ACCOUNT_NAME'].strip('"')
+    account_key= os.environ['BLOB_KEY'].strip('"')
+    container_name = os.environ['BLOB_CONTAINER_NAME'].strip('"')
+
+    blob_saver = BlobSaveable(account_name, account_key, container_name)
+    birdmaker = Generator('data/captions.pickle', blob_saver)
     
     # gpu based
-    cfg.CUDA = os.environ["GPU"].lower() == 'true'
+    cfg.CUDA = os.environ['GPU'].lower() == 'true'
     tc.track_event('container initializing', {"CUDA": str(cfg.CUDA)})
 
-    seed = 100
+    seed = datetime.now().microsecond
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if cfg.CUDA:
         torch.cuda.manual_seed_all(seed)
 
-    blob_saver = BlobSaveable('attgan', os.environ['BLOB_KEY'], 'images', 'https://attgan.blob.core.windows.net')
-    birdmaker = Generator('data/captions.pickle', blob_saver)
-
-    debug = False
-
-    if debug:
-        from werkzeug.contrib.profiler import ProfilerMiddleware
-        app.config['PROFILE'] = True
-        app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
-        app.run(host='0.0.0.0', port=8080, debug = True)
-    else:
-        t1 = time.time()
-        tc.track_event('container start', {"starttime": str(t1-t0)})
-        serve(app)
+    t1 = time.time()
+    tc.track_event('container start', {"starttime": str(t1-t0)})
+    serve(app)
