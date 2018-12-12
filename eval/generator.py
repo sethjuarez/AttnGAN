@@ -20,7 +20,10 @@ else:
     import pickle
 
 class Generator:
-    def __init__(self, caption_file, saveable):
+    def __init__(self, caption_file, saveable, profile=False):
+        # profiling flag
+        self.profile = profile
+
         # load caption indices
         x = pickle.load(open(caption_file, 'rb'))
         self.ixtoword = x[2]
@@ -33,6 +36,7 @@ class Generator:
         self.text_encoder.load_state_dict(state_dict)
         if cfg.CUDA:
             self.text_encoder.cuda()
+            
         self.text_encoder.eval()
 
         # load generative model
@@ -41,6 +45,7 @@ class Generator:
         self.netG.load_state_dict(state_dict)
         if cfg.CUDA:
             self.netG.cuda()
+            
         self.netG.eval()
 
         # saveable items -> push to storage
@@ -86,7 +91,6 @@ class Generator:
         hidden = self.text_encoder.init_hidden(batch_size)
         words_embs, sent_emb = self.text_encoder(captions, cap_lens, hidden)
         mask = (captions == 0)
-            
 
         #######################################################
         # (2) Generate fake images

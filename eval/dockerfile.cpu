@@ -12,7 +12,6 @@ RUN pip install torchvision
 COPY . /usr/src/app
 
 ENV GPU False
-ENV EXPORT_MODEL True
 
 EXPOSE 8080
 

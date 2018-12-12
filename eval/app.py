@@ -178,10 +178,13 @@ if __name__ == '__main__':
     container_name = os.environ['BLOB_CONTAINER_NAME'].strip('"')
 
     blob_saver = BlobSaveable(account_name, account_key, container_name)
-    birdmaker = Generator('data/captions.pickle', blob_saver)
+    birdmaker = Generator('data/captions.pickle', blob_saver, profile=profile)
     
     # gpu based
     cfg.CUDA = os.environ['GPU'].lower() == 'true'
+    if profile:
+        print('cfg.CUDA={}'.format(cfg.CUDA))
+        
     tc.track_event('container initializing', {"CUDA": str(cfg.CUDA)})
 
     seed = datetime.now().microsecond
