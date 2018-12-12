@@ -1,6 +1,7 @@
 import os
 import time
 import random
+import sys, traceback
 from flask import Flask, jsonify, request, abort, render_template
 from applicationinsights import TelemetryClient
 from applicationinsights.requests import WSGIApplication
@@ -22,7 +23,27 @@ global birdmaker, tc, profile, version
 
 def handle_exception(caption):
     if profile:
-        print(sys.exc_info())
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        print "*** print_tb:"
+        traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
+        print "*** print_exception:"
+        traceback.print_exception(exc_type, exc_value, exc_traceback,
+                                limit=2, file=sys.stdout)
+        print "*** print_exc:"
+        traceback.print_exc()
+        print "*** format_exc, first and last line:"
+        formatted_lines = traceback.format_exc().splitlines()
+        print formatted_lines[0]
+        print formatted_lines[-1]
+        print "*** format_exception:"
+        print repr(traceback.format_exception(exc_type, exc_value,
+                                            exc_traceback))
+        print "*** extract_tb:"
+        print repr(traceback.extract_tb(exc_traceback))
+        print "*** format_tb:"
+        print repr(traceback.format_tb(exc_traceback))
+        print "*** tb_lineno:", exc_traceback.tb_lineno
+
     tc.track_exception(*sys.exc_info(), properties={ 'caption': caption })
     tc.flush()
     sys.exc_clear()
@@ -33,6 +54,9 @@ def create_bird():
         abort(400)
 
     caption = request.json['caption']
+
+    if profile:
+        log('/api/v1.0/bird [POST]', caption=caption, date=datetime.now())
 
     try:
         t0 = time.time()
@@ -50,7 +74,7 @@ def create_bird():
         }
 
         if profile:
-            log('/api/v1.0/bird [POST]', **response)
+            log('/api/v1.0/bird [RESPONSE]', **response)
 
         return jsonify({'bird': response}), 201
     except:
@@ -63,6 +87,9 @@ def create_birds():
         abort(400)
 
     caption = request.json['caption']
+
+    if profile:
+        log('/api/v1.0/birds [POST]', caption=caption, date=datetime.now())
 
     try:
         t0 = time.time()
@@ -81,7 +108,7 @@ def create_birds():
         }
 
         if profile:
-            log('/api/v1.0/birds [POST]', caption=caption, elapsed=response['elapsed'])
+            log('/api/v1.0/birds [RESPONSE]', caption=caption, elapsed=response['elapsed'])
             for i in range(1, 7):
                 b = 'bird{}'.format(i)
                 log(b, **response[b])
@@ -98,6 +125,9 @@ def get_bird():
     else:
         caption = 'This bird has wings that are blue and has a red belly'
 
+    if profile:
+        log('/health [GET]', caption=caption, date=datetime.now())
+        
     try:
         t0 = time.time()
         urls = birdmaker.generate(caption)
@@ -115,7 +145,7 @@ def get_bird():
         }
 
         if profile:
-            log('/health [GET]', **response)
+            log('/health [RESPONSE]', **response)
 
         return render_template('main.html', **response)
 
