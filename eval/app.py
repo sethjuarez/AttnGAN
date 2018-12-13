@@ -163,8 +163,12 @@ if __name__ == '__main__':
     # initialize global objects
     global birdmaker, tc, profile, version
 
+    t0 = time.time()
+    tc = TelemetryClient(os.environ["TELEMETRY"].strip('"'))
+
     version = os.environ['VERSION'].strip('"') if 'VERSION' in os.environ else 'Standard'
     profile = 'PROFILE' in os.environ and os.environ['PROFILE'].strip('"').lower() == 'true'
+    
     # gpu based
     cfg.CUDA = os.environ['GPU'].lower() == 'true'
     if profile:
@@ -176,8 +180,7 @@ if __name__ == '__main__':
     if profile:
         log('current environment vars', **os.environ)
 
-    t0 = time.time()
-    tc = TelemetryClient(os.environ["TELEMETRY"].strip('"'))
+    
 
     # initialize saver
     account_name = os.environ['BLOB_ACCOUNT_NAME'].strip('"')
