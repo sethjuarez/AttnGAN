@@ -81,7 +81,7 @@ class Generator:
         noise = Variable(torch.FloatTensor(batch_size, nz), volatile=True)
 
         if cfg.CUDA:
-            captions = captions.cuda()
+            #captions = captions.cuda()
             cap_lens = cap_lens.cuda()
             noise = noise.cuda()
 
