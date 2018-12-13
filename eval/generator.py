@@ -20,9 +20,14 @@ else:
     import pickle
 
 class Generator:
-    def __init__(self, caption_file, saveable, profile=False):
-        # profiling flag
+    def __init__(self, caption_file, saveable, cuda=False, profile=False):
+        # flags
+        self.cuda = cuda
         self.profile = profile
+
+        if self.profile:
+            print('Initializing Generator...')
+            print('cuda={}\nprofile={}'.format(self.cuda, self.profile))
 
         # load caption indices
         x = pickle.load(open(caption_file, 'rb'))
@@ -34,7 +39,7 @@ class Generator:
         self.text_encoder = RNN_ENCODER(len(self.wordtoix), nhidden=cfg.TEXT.EMBEDDING_DIM)
         state_dict = torch.load(cfg.TRAIN.NET_E, map_location=lambda storage, loc: storage)
         self.text_encoder.load_state_dict(state_dict)
-        if cfg.CUDA:
+        if self.cuda:
             self.text_encoder.cuda()
             
         self.text_encoder.eval()
@@ -43,7 +48,7 @@ class Generator:
         self.netG = G_NET()
         state_dict = torch.load(cfg.TRAIN.NET_G, map_location=lambda storage, loc: storage)
         self.netG.load_state_dict(state_dict)
-        if cfg.CUDA:
+        if self.cuda:
             self.netG.cuda()
             
         self.netG.eval()
@@ -80,8 +85,8 @@ class Generator:
         cap_lens = Variable(torch.from_numpy(cap_lens), volatile=True)
         noise = Variable(torch.FloatTensor(batch_size, nz), volatile=True)
 
-        if cfg.CUDA:
-            #captions = captions.cuda()
+        if self.cuda:
+            captions = captions.cuda()
             cap_lens = cap_lens.cuda()
             noise = noise.cuda()
 

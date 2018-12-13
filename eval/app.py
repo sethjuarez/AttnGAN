@@ -165,6 +165,13 @@ if __name__ == '__main__':
 
     version = os.environ['VERSION'].strip('"') if 'VERSION' in os.environ else 'Standard'
     profile = 'PROFILE' in os.environ and os.environ['PROFILE'].strip('"').lower() == 'true'
+    # gpu based
+    cfg.CUDA = os.environ['GPU'].lower() == 'true'
+    if profile:
+        print('cfg.CUDA={}'.format(cfg.CUDA))
+
+    tc.track_event('container initializing', {"CUDA": str(cfg.CUDA)})
+
 
     if profile:
         log('current environment vars', **os.environ)
@@ -178,15 +185,9 @@ if __name__ == '__main__':
     container_name = os.environ['BLOB_CONTAINER_NAME'].strip('"')
 
     blob_saver = BlobSaveable(account_name, account_key, container_name)
-    birdmaker = Generator('data/captions.pickle', blob_saver, profile=profile)
+    birdmaker = Generator('data/captions.pickle', blob_saver, cuda=cfg.CUDA, profile=profile)
     
-    # gpu based
-    cfg.CUDA = os.environ['GPU'].lower() == 'true'
-    if profile:
-        print('cfg.CUDA={}'.format(cfg.CUDA))
-        
-    tc.track_event('container initializing', {"CUDA": str(cfg.CUDA)})
-
+ 
     seed = datetime.now().microsecond
     random.seed(seed)
     np.random.seed(seed)
